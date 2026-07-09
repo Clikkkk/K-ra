@@ -6,15 +6,9 @@ import { Text, View } from '@/components/Themed';
 import { Button } from '@/components/ui/Button';
 import { GameCover } from '@/components/ui/GameCover';
 import { getGameById } from '@/lib/db/games';
-import type { Game, System } from '@/lib/db/schema';
+import { SYSTEM_LABEL, type Game } from '@/lib/db/schema';
 import { hasSaveState } from '@/lib/emulator/loadState';
 import { spacing, typography } from '@/lib/theme/tokens';
-
-const SYSTEM_LABEL: Record<System, string> = {
-  nes: 'NES',
-  snes: 'SNES',
-  gba: 'GBA',
-};
 
 function formatPlaytime(seconds: number): string {
   if (seconds < 60) {

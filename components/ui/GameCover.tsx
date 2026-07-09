@@ -1,18 +1,12 @@
 import { Image, StyleSheet, Text, View, type ViewProps } from 'react-native';
 
-import type { System } from '@/lib/db/schema';
+import { SYSTEM_LABEL, type System } from '@/lib/db/schema';
 import { colors, radii, typography } from '@/lib/theme/tokens';
 
 type GameCoverProps = ViewProps & {
   title: string;
   coverUri?: string | null;
   system?: System;
-};
-
-const SYSTEM_LABEL: Record<System, string> = {
-  nes: 'NES',
-  snes: 'SNES',
-  gba: 'GBA',
 };
 
 export function GameCover({ title, coverUri, system, style, ...viewProps }: GameCoverProps) {

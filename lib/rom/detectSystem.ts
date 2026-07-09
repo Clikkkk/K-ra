@@ -9,6 +9,12 @@ const EXTENSION_TO_SYSTEM: Record<string, System> = {
   gba: 'gba',
 };
 
+export const SYSTEM_TO_EXTENSION: Record<System, string> = {
+  nes: 'nes',
+  snes: 'sfc',
+  gba: 'gba',
+};
+
 const KNOWN_UNSUPPORTED_REASON: Record<string, string> = {
   gb: 'Game Boy todavía no está soportado.',
   gbc: 'Game Boy Color todavía no está soportado.',

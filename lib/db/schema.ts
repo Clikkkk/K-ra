@@ -1,5 +1,11 @@
 export type System = 'nes' | 'snes' | 'gba';
 
+export const SYSTEM_LABEL: Record<System, string> = {
+  nes: 'NES',
+  snes: 'SNES',
+  gba: 'GBA',
+};
+
 export interface Game {
   id: string;
   title: string;

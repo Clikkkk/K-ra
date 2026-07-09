@@ -1,12 +1,7 @@
 import { Directory, File } from 'expo-file-system';
 
 import type { System } from '@/lib/db/schema';
-
-const ROM_EXTENSION: Record<System, string> = {
-  nes: 'nes',
-  snes: 'sfc',
-  gba: 'gba',
-};
+import { SYSTEM_TO_EXTENSION } from '@/lib/rom/detectSystem';
 
 /**
  * Copies the user's imported ROM into the provisioned EmulatorJS directory so it can be
@@ -23,7 +18,7 @@ export async function prepareRomForEmulator(
     romsDir.create({ intermediates: true });
   }
 
-  const fileName = `current.${ROM_EXTENSION[system]}`;
+  const fileName = `current.${SYSTEM_TO_EXTENSION[system]}`;
   const destination = new File(romsDir, fileName);
   if (destination.exists) {
     destination.delete();

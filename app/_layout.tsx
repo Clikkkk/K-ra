@@ -54,6 +54,7 @@ function RootLayoutNav() {
           name="game/[id]"
           options={{ presentation: 'modal', title: 'Ficha del juego' }}
         />
+        <Stack.Screen name="homebrew/[id]" options={{ presentation: 'modal', title: 'Homebrew' }} />
         <Stack.Screen
           name="player/[id]"
           options={{ presentation: 'fullScreenModal', headerShown: false }}
