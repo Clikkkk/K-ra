@@ -1,5 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { base64ToBytes } from '@/lib/base64';
 import { upsertSaveState } from '@/lib/db/saveStates';
 
 import type { EmulatorViewHandle } from '@/components/emulator/EmulatorView';
@@ -14,7 +15,10 @@ export async function saveGameState(emulator: EmulatorViewHandle, gameId: string
   }
 
   const file = new File(savesDir, `${gameId}-slot0.state`);
-  file.write(stateBase64, { encoding: 'base64' });
+  // file.write's native binding only accepts a single argument in this
+  // expo-file-system version (the `encoding` option in its TS types isn't
+  // actually implemented natively yet), so decode base64 -> bytes ourselves.
+  file.write(base64ToBytes(stateBase64));
 
   await upsertSaveState({ id: `${gameId}-0`, gameId, fileUri: file.uri });
 }
