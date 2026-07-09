@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -15,6 +16,7 @@ import { Joystick } from './Joystick';
 type TouchControlsProps = {
   system: System;
   onInput: (input: TouchInput, pressed: boolean) => void;
+  onMenuPress: () => void;
 };
 
 const BUTTON_LABEL: Record<FaceButton, string> = {
@@ -103,7 +105,7 @@ function ActionButtons({
   );
 }
 
-export function TouchControls({ system, onInput }: TouchControlsProps) {
+export function TouchControls({ system, onInput, onMenuPress }: TouchControlsProps) {
   const buttons = SYSTEM_FACE_BUTTONS[system];
   const shoulderButtons = buttons.filter((b): b is 'l' | 'r' => b === 'l' || b === 'r');
   const actionButtons = buttons.filter(
@@ -148,6 +150,9 @@ export function TouchControls({ system, onInput }: TouchControlsProps) {
               style={styles.systemButton}
             />
           ))}
+          <Pressable style={styles.menuButton} onPress={onMenuPress}>
+            <Ionicons name="menu" size={18} color={colors.textMuted} />
+          </Pressable>
         </View>
 
         {right ? (
@@ -192,6 +197,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 30,
     borderRadius: radii.sm,
+  },
+  menuButton: {
+    width: 32,
+    height: 30,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   mainRow: {
     flexDirection: 'row',

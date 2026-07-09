@@ -19,9 +19,10 @@ import { colors, spacing, typography } from '@/lib/theme/tokens';
 export type EmulatorViewHandle = {
   pause: () => void;
   resume: () => void;
-  saveState: () => void;
-  loadState: (stateBase64: string) => void;
+  saveState: () => Promise<string>;
+  loadState: (stateBase64: string) => Promise<void>;
   setVolume: (volume: number) => void;
+  setPixelSmoothing: (smooth: boolean) => void;
   sendInput: (input: TouchInput, pressed: boolean) => void;
 };
 
@@ -118,6 +119,11 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
       } catch (e) {
         post({ type: 'error', message: 'loadState failed: ' + e });
       }
+    },
+    setPixelSmoothing: function(smooth) {
+      if (window.EJS_emulator && window.EJS_emulator.canvas) {
+        window.EJS_emulator.canvas.style.imageRendering = smooth ? 'auto' : 'pixelated';
+      }
     }
   };
 
@@ -157,6 +163,8 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const pendingSaveState = useRef<((stateBase64: string) => void) | null>(null);
+  const pendingLoadState = useRef<(() => void) | null>(null);
 
   function appendLog(message: string) {
     setLogs((prev) => [...prev.slice(-49), message]);
@@ -169,9 +177,18 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
   useImperativeHandle(ref, () => ({
     pause: () => runCommand({ type: 'pause' }),
     resume: () => runCommand({ type: 'resume' }),
-    saveState: () => runCommand({ type: 'saveState' }),
-    loadState: (stateBase64: string) => runCommand({ type: 'loadState', stateBase64 }),
+    saveState: () =>
+      new Promise<string>((resolve) => {
+        pendingSaveState.current = resolve;
+        runCommand({ type: 'saveState' });
+      }),
+    loadState: (stateBase64: string) =>
+      new Promise<void>((resolve) => {
+        pendingLoadState.current = resolve;
+        runCommand({ type: 'loadState', stateBase64 });
+      }),
     setVolume: (volume: number) => runCommand({ type: 'setVolume', volume }),
+    setPixelSmoothing: (smooth: boolean) => runCommand({ type: 'setPixelSmoothing', smooth }),
     sendInput: (input: TouchInput, pressed: boolean) =>
       webViewRef.current?.injectJavaScript(buildSimulateInputScript(input, pressed)),
   }));
@@ -236,6 +253,12 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
       appendLog(`evento: ${bridgeEvent.type}`);
       if (bridgeEvent.type === 'started') {
         setStarted(true);
+      } else if (bridgeEvent.type === 'saveStateResult') {
+        pendingSaveState.current?.(bridgeEvent.stateBase64);
+        pendingSaveState.current = null;
+      } else if (bridgeEvent.type === 'stateLoaded') {
+        pendingLoadState.current?.();
+        pendingLoadState.current = null;
       }
     }
     onEvent?.(bridgeEvent);

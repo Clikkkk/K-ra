@@ -19,7 +19,7 @@ export interface SaveState {
   created_at: number;
 }
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS games (
@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS save_states (
 );
 
 CREATE INDEX IF NOT EXISTS idx_save_states_game_id ON save_states(game_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_save_states_game_slot ON save_states(game_id, slot);
 `;
 
 // Applied in order for existing installs whose user_version is below SCHEMA_VERSION.
@@ -49,4 +50,5 @@ CREATE INDEX IF NOT EXISTS idx_save_states_game_id ON save_states(game_id);
 // the latest shape.
 export const MIGRATIONS: Record<number, string> = {
   2: 'ALTER TABLE games ADD COLUMN imported_at INTEGER NOT NULL DEFAULT 0;',
+  3: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_save_states_game_slot ON save_states(game_id, slot);',
 };

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { GameCover } from '@/components/ui/GameCover';
 import { getGameById } from '@/lib/db/games';
 import type { Game, System } from '@/lib/db/schema';
+import { hasSaveState } from '@/lib/emulator/loadState';
 import { spacing, typography } from '@/lib/theme/tokens';
 
 const SYSTEM_LABEL: Record<System, string> = {
@@ -27,11 +28,15 @@ function formatPlaytime(seconds: number): string {
 export default function GameDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [game, setGame] = useState<Game | null | undefined>(undefined);
+  const [canContinue, setCanContinue] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     getGameById(id).then((result) => {
       if (!cancelled) setGame(result);
+    });
+    hasSaveState(id).then((result) => {
+      if (!cancelled) setCanContinue(result);
     });
     return () => {
       cancelled = true;
@@ -62,7 +67,7 @@ export default function GameDetailScreen() {
       <Text style={styles.meta}>{SYSTEM_LABEL[game.system]}</Text>
       <Text style={styles.meta}>{formatPlaytime(game.playtime)}</Text>
       <Button
-        label="Jugar"
+        label={canContinue ? 'Continuar' : 'Jugar'}
         onPress={() => router.push(`/player/${game.id}`)}
         style={styles.playButton}
       />

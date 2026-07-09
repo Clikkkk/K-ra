@@ -22,10 +22,11 @@ type GameCanvasProps = {
   romUri: string;
   gameName: string;
   onEvent?: (event: BridgeEvent) => void;
+  onMenuPress: () => void;
 };
 
 export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(function GameCanvas(
-  { system, romUri, gameName, onEvent },
+  { system, romUri, gameName, onEvent, onMenuPress },
   ref
 ) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -35,9 +36,13 @@ export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(functi
   useImperativeHandle(ref, () => ({
     pause: () => emulatorRef.current?.pause(),
     resume: () => emulatorRef.current?.resume(),
-    saveState: () => emulatorRef.current?.saveState(),
-    loadState: (stateBase64: string) => emulatorRef.current?.loadState(stateBase64),
+    saveState: () =>
+      emulatorRef.current?.saveState() ?? Promise.reject(new Error('Emulator not ready')),
+    loadState: (stateBase64: string) =>
+      emulatorRef.current?.loadState(stateBase64) ??
+      Promise.reject(new Error('Emulator not ready')),
     setVolume: (volume: number) => emulatorRef.current?.setVolume(volume),
+    setPixelSmoothing: (smooth: boolean) => emulatorRef.current?.setPixelSmoothing(smooth),
     sendInput: (input, pressed) => emulatorRef.current?.sendInput(input, pressed),
   }));
 
@@ -73,6 +78,7 @@ export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(functi
         <TouchControls
           system={system}
           onInput={(input, pressed) => emulatorRef.current?.sendInput(input, pressed)}
+          onMenuPress={onMenuPress}
         />
       </View>
     </View>
