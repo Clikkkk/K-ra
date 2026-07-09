@@ -1,15 +1,18 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 
+import { ExitButton } from '@/components/emulator/ExitButton';
 import { GameCanvas } from '@/components/emulator/GameCanvas';
 import { Text, View } from '@/components/Themed';
 import { getGameById, markGamePlayed } from '@/lib/db/games';
 import type { Game } from '@/lib/db/schema';
+import { PlaytimeTracker } from '@/lib/emulator/playtimeTracker';
 
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [game, setGame] = useState<Game | null | undefined>(undefined);
+  const trackerRef = useRef<PlaytimeTracker | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -19,6 +22,13 @@ export default function PlayerScreen() {
     });
     return () => {
       cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    trackerRef.current = new PlaytimeTracker(id);
+    return () => {
+      trackerRef.current?.stop();
     };
   }, [id]);
 
@@ -34,10 +44,18 @@ export default function PlayerScreen() {
     );
   }
 
-  return <GameCanvas system={game.system} romUri={game.file_uri} gameName={game.title} />;
+  return (
+    <View style={styles.container}>
+      <GameCanvas system={game.system} romUri={game.file_uri} gameName={game.title} />
+      <ExitButton />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   center: {
     flex: 1,
     alignItems: 'center',

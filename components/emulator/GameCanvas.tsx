@@ -1,18 +1,21 @@
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { forwardRef, useEffect } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import type { BridgeEvent } from '@/lib/emulator/bridge';
 import type { System } from '@/lib/db/schema';
+import type { BridgeEvent } from '@/lib/emulator/bridge';
 import { colors } from '@/lib/theme/tokens';
 
 import { EmulatorView, type EmulatorViewHandle } from './EmulatorView';
+import { TouchControls } from './TouchControls';
 
 const ASPECT_RATIO: Record<System, number> = {
   nes: 4 / 3,
   snes: 4 / 3,
   gba: 3 / 2,
 };
+
+const CONTROLS_HEIGHT = 260;
 
 type GameCanvasProps = {
   system: System;
@@ -27,30 +30,49 @@ export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(functi
 ) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const aspectRatio = ASPECT_RATIO[system];
+  const emulatorRef = useRef<EmulatorViewHandle>(null);
+
+  useImperativeHandle(ref, () => ({
+    pause: () => emulatorRef.current?.pause(),
+    resume: () => emulatorRef.current?.resume(),
+    saveState: () => emulatorRef.current?.saveState(),
+    loadState: (stateBase64: string) => emulatorRef.current?.loadState(stateBase64),
+    setVolume: (volume: number) => emulatorRef.current?.setVolume(volume),
+    sendInput: (input, pressed) => emulatorRef.current?.sendInput(input, pressed),
+  }));
 
   useEffect(() => {
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
     return () => {
       ScreenOrientation.unlockAsync();
     };
   }, []);
 
+  const availableGameHeight = Math.max(windowHeight - CONTROLS_HEIGHT, 0);
   let width = windowWidth;
   let height = width / aspectRatio;
-  if (height > windowHeight) {
-    height = windowHeight;
+  if (height > availableGameHeight) {
+    height = availableGameHeight;
     width = height * aspectRatio;
   }
 
   return (
     <View style={styles.container}>
-      <View style={{ width, height }}>
-        <EmulatorView
-          ref={ref}
+      <View style={styles.gameArea}>
+        <View style={{ width, height }}>
+          <EmulatorView
+            ref={emulatorRef}
+            system={system}
+            romUri={romUri}
+            gameName={gameName}
+            onEvent={onEvent}
+          />
+        </View>
+      </View>
+      <View style={[styles.controlsArea, { height: CONTROLS_HEIGHT }]}>
+        <TouchControls
           system={system}
-          romUri={romUri}
-          gameName={gameName}
-          onEvent={onEvent}
+          onInput={(input, pressed) => emulatorRef.current?.sendInput(input, pressed)}
         />
       </View>
     </View>
@@ -60,8 +82,14 @@ export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(functi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  gameArea: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
+  },
+  controlsArea: {
+    justifyContent: 'center',
   },
 });

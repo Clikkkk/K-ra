@@ -11,6 +11,7 @@ import {
   type BridgeCommand,
   type BridgeEvent,
 } from '@/lib/emulator/bridge';
+import { buildSimulateInputScript, type TouchInput } from '@/lib/emulator/inputMap';
 import { prepareRomForEmulator } from '@/lib/emulator/loadRom';
 import { ensureEmulatorAssets } from '@/lib/emulator/provision';
 import { colors, spacing, typography } from '@/lib/theme/tokens';
@@ -21,6 +22,7 @@ export type EmulatorViewHandle = {
   saveState: () => void;
   loadState: (stateBase64: string) => void;
   setVolume: (volume: number) => void;
+  sendInput: (input: TouchInput, pressed: boolean) => void;
 };
 
 type EmulatorViewProps = {
@@ -128,7 +130,15 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
   window.EJS_threads = false;
   window.EJS_disableDatabases = true;
   window.EJS_ready = function() { post({ type: 'ready' }); };
-  window.EJS_onGameStart = function() { post({ type: 'started' }); };
+  window.EJS_onGameStart = function() {
+    // Kōra draws its own touch controls (components/emulator/TouchControls.tsx);
+    // EmulatorJS shows its built-in virtual gamepad automatically once it
+    // detects a touch, which would otherwise stack on top of ours.
+    if (window.EJS_emulator && window.EJS_emulator.virtualGamepad) {
+      window.EJS_emulator.virtualGamepad.style.display = 'none';
+    }
+    post({ type: 'started' });
+  };
 
   post({ type: 'log', level: 'log', message: 'requesting data/loader.js' });
 </script>
@@ -162,6 +172,8 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
     saveState: () => runCommand({ type: 'saveState' }),
     loadState: (stateBase64: string) => runCommand({ type: 'loadState', stateBase64 }),
     setVolume: (volume: number) => runCommand({ type: 'setVolume', volume }),
+    sendInput: (input: TouchInput, pressed: boolean) =>
+      webViewRef.current?.injectJavaScript(buildSimulateInputScript(input, pressed)),
   }));
 
   useEffect(() => {

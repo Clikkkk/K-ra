@@ -25,6 +25,12 @@ export async function markGamePlayed(id: string): Promise<void> {
   await db.runAsync('UPDATE games SET last_played = ? WHERE id = ?', [Date.now(), id]);
 }
 
+/** Adds `deltaSeconds` to a game's stored playtime (F4.30). */
+export async function incrementPlaytime(id: string, deltaSeconds: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE games SET playtime = playtime + ? WHERE id = ?', [deltaSeconds, id]);
+}
+
 export async function upsertGame(game: Game): Promise<void> {
   const db = await getDb();
   await db.runAsync(
