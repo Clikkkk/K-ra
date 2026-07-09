@@ -23,10 +23,24 @@ type GameCanvasProps = {
   gameName: string;
   onEvent?: (event: BridgeEvent) => void;
   onMenuPress: () => void;
+  onFastForwardPress?: () => void;
+  onRewindPress?: () => void;
+  isFastForwardActive?: boolean;
+  canRewind?: boolean;
 };
 
 export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(function GameCanvas(
-  { system, romUri, gameName, onEvent, onMenuPress },
+  {
+    system,
+    romUri,
+    gameName,
+    onEvent,
+    onMenuPress,
+    onFastForwardPress,
+    onRewindPress,
+    isFastForwardActive = false,
+    canRewind = false,
+  },
   ref
 ) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -44,27 +58,66 @@ export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(functi
     setVolume: (volume: number) => emulatorRef.current?.setVolume(volume),
     setPixelSmoothing: (smooth: boolean) => emulatorRef.current?.setPixelSmoothing(smooth),
     sendInput: (input, pressed) => emulatorRef.current?.sendInput(input, pressed),
+    toggleFastForward: () => emulatorRef.current?.toggleFastForward(),
+    restart: () => emulatorRef.current?.restart(),
   }));
 
   useEffect(() => {
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    // Unlock to allow landscape rotation
+    ScreenOrientation.unlockAsync();
     return () => {
-      ScreenOrientation.unlockAsync();
+      // Re-lock to portrait when leaving the gameplay view
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
     };
   }, []);
 
-  const availableGameHeight = Math.max(windowHeight - CONTROLS_HEIGHT, 0);
-  let width = windowWidth;
-  let height = width / aspectRatio;
-  if (height > availableGameHeight) {
-    height = availableGameHeight;
-    width = height * aspectRatio;
+  const isLandscape = windowWidth > windowHeight;
+
+  const availableGameHeight = isLandscape
+    ? windowHeight
+    : Math.max(windowHeight - CONTROLS_HEIGHT, 0);
+  let gameWidth = isLandscape ? windowHeight * aspectRatio : windowWidth;
+  let gameHeight = gameWidth / aspectRatio;
+
+  if (gameHeight > availableGameHeight) {
+    gameHeight = availableGameHeight;
+    gameWidth = gameHeight * aspectRatio;
+  }
+
+  if (isLandscape) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.gameAreaLandscape}>
+          <View style={{ width: gameWidth, height: gameHeight }}>
+            <EmulatorView
+              ref={emulatorRef}
+              system={system}
+              romUri={romUri}
+              gameName={gameName}
+              onEvent={onEvent}
+            />
+          </View>
+        </View>
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+          <TouchControls
+            system={system}
+            onInput={(input, pressed) => emulatorRef.current?.sendInput(input, pressed)}
+            onMenuPress={onMenuPress}
+            isLandscape={true}
+            onFastForwardPress={onFastForwardPress}
+            onRewindPress={onRewindPress}
+            isFastForwardActive={isFastForwardActive}
+            canRewind={canRewind}
+          />
+        </View>
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
       <View style={styles.gameArea}>
-        <View style={{ width, height }}>
+        <View style={{ width: gameWidth, height: gameHeight }}>
           <EmulatorView
             ref={emulatorRef}
             system={system}
@@ -79,6 +132,10 @@ export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(functi
           system={system}
           onInput={(input, pressed) => emulatorRef.current?.sendInput(input, pressed)}
           onMenuPress={onMenuPress}
+          onFastForwardPress={onFastForwardPress}
+          onRewindPress={onRewindPress}
+          isFastForwardActive={isFastForwardActive}
+          canRewind={canRewind}
         />
       </View>
     </View>
@@ -92,6 +149,12 @@ const styles = StyleSheet.create({
   },
   gameArea: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gameAreaLandscape: {
+    flex: 1,
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -3,7 +3,6 @@ import { Tabs } from 'expo-router';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -12,23 +11,35 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          backgroundColor: '#15140F',
+          borderTopWidth: 1,
+          borderTopColor: '#302E26',
+          elevation: 0,
+          shadowOpacity: 0,
+          paddingTop: 8,
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
+          title: 'Inicio',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" color={color} size={size - 2} />
+          ),
         }}
       />
       <Tabs.Screen
         name="biblioteca"
         options={{
           title: 'Biblioteca',
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="grid-outline" color={color} size={size - 2} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -36,7 +47,7 @@ export default function TabLayout() {
         options={{
           title: 'Homebrew',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="game-controller" color={color} size={size} />
+            <Ionicons name="game-controller-outline" color={color} size={size - 2} />
           ),
         }}
       />
@@ -44,7 +55,9 @@ export default function TabLayout() {
         name="ajustes"
         options={{
           title: 'Ajustes',
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" color={color} size={size - 2} />
+          ),
         }}
       />
     </Tabs>

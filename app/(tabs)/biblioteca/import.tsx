@@ -1,4 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { Directory, File, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -6,10 +8,11 @@ import { StyleSheet } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { Button } from '@/components/ui/Button';
 import { Toast } from '@/components/ui/Toast';
-import { insertImportedGame } from '@/lib/db/games';
+import { insertImportedGame, updateGameCover } from '@/lib/db/games';
+import { System } from '@/lib/db/schema';
 import { detectSystemFromFileName } from '@/lib/rom/detectSystem';
 import { storeRom } from '@/lib/rom/storeRom';
-import { spacing } from '@/lib/theme/tokens';
+import { colors, spacing } from '@/lib/theme/tokens';
 
 function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -22,6 +25,45 @@ function titleFromFileName(fileName: string): string {
 function getExtension(fileName: string): string {
   const parts = fileName.split('.');
   return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+}
+
+async function scrapeAndSaveCover(
+  gameId: string,
+  romFileName: string,
+  system: System
+): Promise<string | null> {
+  const consoleNames: Record<System, string> = {
+    nes: 'Nintendo - Nintendo Entertainment System',
+    snes: 'Nintendo - Super Nintendo Entertainment System',
+    gba: 'Nintendo - Game Boy Advance',
+  };
+
+  const systemName = consoleNames[system];
+  if (!systemName) return null;
+
+  // Remove extension to get base game name
+  const baseName = romFileName.substring(0, romFileName.lastIndexOf('.')).trim();
+  const url = `https://thumbnails.libretro.com/${encodeURIComponent(systemName)}/Named_Boxarts/${encodeURIComponent(baseName)}.png`;
+
+  try {
+    const coversDir = new Directory(Paths.document, 'covers');
+    if (!coversDir.exists) {
+      coversDir.create({ intermediates: true });
+    }
+    const destination = new File(coversDir, `${gameId}.jpg`);
+
+    const downloadResult = await FileSystem.downloadAsync(url, destination.uri);
+    if (downloadResult.status === 200) {
+      return destination.uri;
+    } else {
+      if (destination.exists) {
+        destination.delete();
+      }
+    }
+  } catch (err) {
+    console.warn('Cover scraper error:', err);
+  }
+  return null;
 }
 
 export default function ImportRomScreen() {
@@ -61,6 +103,17 @@ export default function ImportRomScreen() {
         system: detection.system,
         file_uri: fileUri,
       });
+
+      // Attempt to scrape cover art
+      try {
+        const coverUri = await scrapeAndSaveCover(id, file.name, detection.system);
+        if (coverUri) {
+          await updateGameCover(id, coverUri);
+        }
+      } catch (coverErr) {
+        console.warn('Cover scrape failed silently:', coverErr);
+      }
+
       router.back();
     } catch {
       showToast('No pudimos importar este archivo. Probá con otro o intentá de nuevo.');
@@ -71,7 +124,6 @@ export default function ImportRomScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Importar ROM</Text>
       <Text style={styles.subtitle}>Elegí un archivo .nes, .sfc o .gba de tu dispositivo.</Text>
       <Button
         label={importing ? 'Importando...' : 'Elegir archivo'}
@@ -91,11 +143,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.lg,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
   subtitle: {
     textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 15,
+    lineHeight: 22,
   },
 });

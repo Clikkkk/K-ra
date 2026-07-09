@@ -70,3 +70,12 @@ export function ensureEmulatorAssets(): Promise<string> {
   }
   return provisionPromise;
 }
+
+/** Deletes the provisioned EmulatorJS bundle so it's re-extracted on next play (F7 clear cache). */
+export function clearProvisionedEmulatorAssets(): void {
+  const targetDir = new Directory(Paths.document, BUNDLE_DIR_NAME);
+  if (targetDir.exists) {
+    targetDir.delete();
+  }
+  provisionPromise = null;
+}

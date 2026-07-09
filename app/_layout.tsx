@@ -1,11 +1,11 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { ThemeProvider as KoraThemeProvider, useTheme } from '@/lib/theme/ThemeContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -40,21 +40,51 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <KoraThemeProvider>
+      <RootLayoutNav />
+    </KoraThemeProvider>
+  );
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+function NavigationWrapper() {
+  const { colors } = useTheme();
+
+  const CustomTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: colors.accent,
+      background: '#15140F',
+      card: '#15140F',
+      text: '#F4F2EE',
+      border: '#302E26',
+      notification: colors.accent,
+    },
+  };
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+    <ThemeProvider value={CustomTheme}>
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: '#15140F',
+          },
+          headerTintColor: colors.accent,
+          headerTitleStyle: {
+            color: '#F4F2EE',
+            fontWeight: '600',
+            fontSize: 16,
+          },
+          headerShadowVisible: false,
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="game/[id]" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen
-          name="game/[id]"
-          options={{ presentation: 'modal', title: 'Ficha del juego' }}
+          name="homebrew/[id]"
+          options={{ presentation: 'modal', headerShown: false }}
         />
-        <Stack.Screen name="homebrew/[id]" options={{ presentation: 'modal', title: 'Homebrew' }} />
         <Stack.Screen
           name="player/[id]"
           options={{ presentation: 'fullScreenModal', headerShown: false }}
@@ -62,4 +92,8 @@ function RootLayoutNav() {
       </Stack>
     </ThemeProvider>
   );
+}
+
+function RootLayoutNav() {
+  return <NavigationWrapper />;
 }

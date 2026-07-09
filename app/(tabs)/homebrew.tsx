@@ -1,16 +1,19 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text, View } from '@/components/Themed';
 import { GameCover } from '@/components/ui/GameCover';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { SYSTEM_LABEL } from '@/lib/db/schema';
 import { getHomebrewCatalog } from '@/lib/homebrew/cache';
 import type { HomebrewGame } from '@/lib/homebrew/catalog';
 import { colors, radii, spacing, typography } from '@/lib/theme/tokens';
 
 export default function HomebrewScreen() {
-  const [games, setGames] = useState<HomebrewGame[]>([]);
+  const [games, setGames] = useState<HomebrewGame[] | null>(null);
+  const insets = useSafeAreaInsets();
 
   useFocusEffect(
     useCallback(() => {
@@ -18,14 +21,17 @@ export default function HomebrewScreen() {
     }, [])
   );
 
+  if (games === null) {
+    return <LoadingState />;
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Homebrew</Text>
+    <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
       <FlatList
         data={games}
         keyExtractor={(game) => game.id}
         numColumns={3}
-        contentContainerStyle={styles.grid}
+        contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + spacing.xl }]}
         columnWrapperStyle={styles.row}
         renderItem={({ item }) => (
           <Pressable style={styles.gameItem} onPress={() => router.push(`/homebrew/${item.id}`)}>
@@ -48,13 +54,6 @@ export default function HomebrewScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
-    paddingHorizontal: spacing.md,
   },
   grid: {
     paddingHorizontal: spacing.md,

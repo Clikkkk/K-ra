@@ -1,6 +1,6 @@
 import { File } from 'expo-file-system';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Animated } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
 import type { System } from '@/lib/db/schema';
@@ -14,7 +14,9 @@ import {
 import { buildSimulateInputScript, type TouchInput } from '@/lib/emulator/inputMap';
 import { prepareRomForEmulator } from '@/lib/emulator/loadRom';
 import { ensureEmulatorAssets } from '@/lib/emulator/provision';
-import { colors, spacing, typography } from '@/lib/theme/tokens';
+import { colors, radii, spacing } from '@/lib/theme/tokens';
+
+import { ErrorState } from '@/components/ui/ErrorState';
 
 export type EmulatorViewHandle = {
   pause: () => void;
@@ -24,6 +26,8 @@ export type EmulatorViewHandle = {
   setVolume: (volume: number) => void;
   setPixelSmoothing: (smooth: boolean) => void;
   sendInput: (input: TouchInput, pressed: boolean) => void;
+  toggleFastForward: () => void;
+  restart: () => void;
 };
 
 type EmulatorViewProps = {
@@ -47,31 +51,98 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
 <style>
   html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
   #game { width: 100%; height: 100%; }
+  canvas {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
 </style>
 </head>
 <body>
 <div id="game"></div>
+<div id="unmute-overlay" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(21,20,15,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="background:#C9834A;padding:12px 24px;border-radius:24px;color:#ffffff;font-weight:bold;font-size:13px;box-shadow:0 8px 16px rgba(0,0,0,0.4);letter-spacing:0.8px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+    🔊 ACTIVAR SONIDO
+  </div>
+  <span style="color:#A6A295;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;">Toca la pantalla para habilitar el audio</span>
+</div>
 <script>
+  // Intercept and auto-resume AudioContext to bypass mobile WebView autoplay constraints
+  (function() {
+    const OriginalAudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!OriginalAudioContext) return;
+    
+    const activeContexts = [];
+    
+    function NewAudioContext(options) {
+      const context = new OriginalAudioContext(options);
+      activeContexts.push(context);
+      
+      const tryResume = function() {
+        if (context.state === 'suspended') {
+          context.resume().catch(function(){});
+        }
+      };
+      
+      context.onstatechange = tryResume;
+      setTimeout(tryResume, 100);
+      return context;
+    }
+    
+    NewAudioContext.prototype = OriginalAudioContext.prototype;
+    
+    window.AudioContext = NewAudioContext;
+    window.webkitAudioContext = NewAudioContext;
+    
+    setInterval(function() {
+      activeContexts.forEach(function(ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(function(){});
+        }
+      });
+      if (window.EJS_emulator && window.EJS_emulator.audioContext) {
+        if (window.EJS_emulator.audioContext.state === 'suspended') {
+          window.EJS_emulator.audioContext.resume().catch(function(){});
+        }
+      }
+    }, 500);
+
+    // Unmute overlay listener for direct user touch activation on mobile Safari WKWebView
+    const unmuteOverlay = document.getElementById('unmute-overlay');
+    if (unmuteOverlay) {
+      const handleUnmute = function(e) {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        activeContexts.forEach(function(ctx) {
+          ctx.resume().catch(function(){});
+        });
+        if (window.EJS_emulator && window.EJS_emulator.audioContext) {
+          window.EJS_emulator.audioContext.resume().catch(function(){});
+        }
+        unmuteOverlay.style.display = 'none';
+      };
+      unmuteOverlay.addEventListener('click', handleUnmute);
+      unmuteOverlay.addEventListener('touchstart', handleUnmute);
+    }
+  })();
+
   function post(payload) {
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(JSON.stringify(payload));
     }
   }
 
-  ['log', 'warn', 'error'].forEach(function(level) {
-    const original = console[level] ? console[level].bind(console) : function() {};
-    console[level] = function() {
-      const message = Array.prototype.slice.call(arguments).map(String).join(' ');
-      post({ type: 'log', level: level, message: message });
-      original.apply(console, arguments);
-    };
-  });
+
 
   window.onerror = function(message, source, lineno, colno) {
-    post({ type: 'error', message: String(message) + ' @' + source + ':' + lineno + ':' + colno });
+    post({ type: 'log', level: 'error', message: String(message) + ' @' + source + ':' + lineno + ':' + colno });
   };
   window.addEventListener('unhandledrejection', function(e) {
-    post({ type: 'error', message: 'unhandledrejection: ' + e.reason });
+    post({ type: 'log', level: 'error', message: 'unhandledrejection: ' + e.reason });
   });
 
   post({ type: 'log', level: 'log', message: 'bootstrap script running' });
@@ -134,7 +205,9 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
   window.EJS_pathtodata = 'data/';
   window.EJS_startOnLoaded = true;
   window.EJS_threads = false;
+  window.EJS_volume = 1.0;
   window.EJS_disableDatabases = true;
+  window.EJS_disableAutoLang = true;
   window.EJS_ready = function() { post({ type: 'ready' }); };
   window.EJS_onGameStart = function() {
     // Kōra draws its own touch controls (components/emulator/TouchControls.tsx);
@@ -162,12 +235,39 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
   const [readAccessUrl, setReadAccessUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [retryCount, setRetryCount] = useState(0);
   const pendingSaveState = useRef<((stateBase64: string) => void) | null>(null);
   const pendingLoadState = useRef<(() => void) | null>(null);
+  const pulseAnim = useRef(new Animated.Value(0.35)).current;
+
+  useEffect(() => {
+    let anim: Animated.CompositeAnimation | null = null;
+    if (!started && !error) {
+      anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 0.75,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.35,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      anim.start();
+    }
+    return () => {
+      anim?.stop();
+    };
+  }, [started, error, pulseAnim]);
 
   function appendLog(message: string) {
-    setLogs((prev) => [...prev.slice(-49), message]);
+    if (__DEV__) {
+      console.log(`[EmulatorView] ${message}`);
+    }
   }
 
   function runCommand(command: BridgeCommand) {
@@ -191,6 +291,30 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
     setPixelSmoothing: (smooth: boolean) => runCommand({ type: 'setPixelSmoothing', smooth }),
     sendInput: (input: TouchInput, pressed: boolean) =>
       webViewRef.current?.injectJavaScript(buildSimulateInputScript(input, pressed)),
+    toggleFastForward: () => {
+      webViewRef.current?.injectJavaScript(`
+        (function() {
+          const dispatch = function(type) {
+            const ev = new KeyboardEvent(type, {
+              key: ' ',
+              code: 'Space',
+              keyCode: 32,
+              which: 32,
+              bubbles: true
+            });
+            document.dispatchEvent(ev);
+          };
+          dispatch('keydown');
+          setTimeout(function() { dispatch('keyup'); }, 50);
+        })();
+        true;
+      `);
+    },
+    restart: () => {
+      setStarted(false);
+      setError(null);
+      webViewRef.current?.reload();
+    },
   }));
 
   useEffect(() => {
@@ -226,7 +350,14 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
     return () => {
       cancelled = true;
     };
-  }, [romUri, system, gameName]);
+  }, [romUri, system, gameName, retryCount]);
+
+  function handleRetry() {
+    setError(null);
+    setStarted(false);
+    setHtmlFileUri(null);
+    setRetryCount((count) => count + 1);
+  }
 
   useEffect(() => {
     if (!htmlFileUri || started) return;
@@ -264,7 +395,8 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
     onEvent?.(bridgeEvent);
   }
 
-  const showDiagnostics = !started;
+  const showLoading = !started && !error;
+  const showProdError = !!error;
 
   return (
     <View style={styles.container}>
@@ -280,22 +412,47 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
           javaScriptEnabled
           domStorageEnabled
           mediaPlaybackRequiresUserAction={false}
+          allowsInlineMediaPlayback={true}
           onMessage={handleMessage}
           onError={(e) => appendLog(`WebView onError: ${JSON.stringify(e.nativeEvent)}`)}
           onHttpError={(e) => appendLog(`WebView onHttpError: ${JSON.stringify(e.nativeEvent)}`)}
+          scrollEnabled={false}
+          bounces={false}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          overScrollMode="never"
           style={styles.webview}
         />
       )}
-      {showDiagnostics && (
-        <View style={styles.overlay} pointerEvents="none">
-          {error && <Text style={styles.errorText}>{error}</Text>}
-          <ScrollView style={styles.logScroll}>
-            {logs.map((line, i) => (
-              <Text key={i} style={styles.logText}>
-                {line}
-              </Text>
-            ))}
-          </ScrollView>
+      {showLoading && (
+        <View style={styles.overlay}>
+          <View style={styles.skeletonContainer}>
+            <Animated.View style={[styles.skeletonScreen, { opacity: pulseAnim }]} />
+            <View style={styles.skeletonControls}>
+              <View style={styles.skeletonLeft}>
+                <Animated.View style={[styles.skeletonCircle, { opacity: pulseAnim }]} />
+              </View>
+              <View style={styles.skeletonCenter}>
+                <Animated.View style={[styles.skeletonPill, { opacity: pulseAnim }]} />
+                <Animated.View style={[styles.skeletonPill, { opacity: pulseAnim }]} />
+              </View>
+              <View style={styles.skeletonRight}>
+                <View style={styles.skeletonDiamond}>
+                  <Animated.View style={[styles.skeletonBtn, { opacity: pulseAnim }]} />
+                  <Animated.View style={[styles.skeletonBtn, { opacity: pulseAnim }]} />
+                </View>
+              </View>
+            </View>
+            <Text style={styles.skeletonText}>Iniciando núcleo...</Text>
+          </View>
+        </View>
+      )}
+      {showProdError && (
+        <View style={styles.overlay}>
+          <ErrorState
+            message="No pudimos cargar el juego. Volvé a intentarlo."
+            onRetry={handleRetry}
+          />
         </View>
       )}
     </View>
@@ -317,20 +474,78 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    padding: spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: '#15140F',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  logScroll: {
-    flex: 1,
+  skeletonContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    padding: spacing.md,
   },
-  logText: {
-    color: colors.text,
-    fontSize: typography.size.xs,
-    lineHeight: typography.lineHeight.xs,
+  skeletonScreen: {
+    width: '85%',
+    aspectRatio: 4 / 3,
+    backgroundColor: '#292721',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: '#35332C',
   },
-  errorText: {
-    color: colors.danger,
-    fontSize: typography.size.sm,
-    marginBottom: spacing.xs,
+  skeletonControls: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    marginTop: spacing.xl,
+  },
+  skeletonLeft: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skeletonCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: radii.full,
+    backgroundColor: '#292721',
+    borderWidth: 1,
+    borderColor: '#35332C',
+  },
+  skeletonCenter: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  skeletonPill: {
+    width: 32,
+    height: 12,
+    borderRadius: radii.full,
+    backgroundColor: '#292721',
+    borderWidth: 1,
+    borderColor: '#35332C',
+  },
+  skeletonRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skeletonDiamond: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  skeletonBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.full,
+    backgroundColor: '#292721',
+    borderWidth: 1,
+    borderColor: '#35332C',
+  },
+  skeletonText: {
+    marginTop: spacing.xl,
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

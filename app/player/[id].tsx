@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 
 import { ExitButton } from '@/components/emulator/ExitButton';
 import type { EmulatorViewHandle } from '@/components/emulator/EmulatorView';
 import { GameCanvas } from '@/components/emulator/GameCanvas';
 import { QuickMenu } from '@/components/emulator/QuickMenu';
 import { Text, View } from '@/components/Themed';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { getGameById, markGamePlayed } from '@/lib/db/games';
 import type { Game } from '@/lib/db/schema';
 import type { BridgeEvent } from '@/lib/emulator/bridge';
@@ -18,10 +19,26 @@ export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [game, setGame] = useState<Game | null | undefined>(undefined);
   const [quickMenuVisible, setQuickMenuVisible] = useState(false);
-  const [hasSave, setHasSave] = useState(false);
+  const [saveSlotsExist, setSaveSlotsExist] = useState<boolean[]>([false, false, false]);
   const [smoothing, setSmoothing] = useState(false);
+  const [isFastForwardActive, setIsFastForwardActive] = useState(false);
+  const [canRewind, setCanRewind] = useState(false);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
   const trackerRef = useRef<PlaytimeTracker | null>(null);
   const gameCanvasRef = useRef<EmulatorViewHandle>(null);
+  const rewindBuffer = useRef<string[]>([]);
+  const rewindIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const checkSaveSlots = useCallback(async () => {
+    const results = await Promise.all([
+      hasSaveState(id, 0),
+      hasSaveState(id, 1),
+      hasSaveState(id, 2),
+    ]);
+    setSaveSlotsExist(results);
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,16 +55,46 @@ export default function PlayerScreen() {
     trackerRef.current = new PlaytimeTracker(id);
     return () => {
       trackerRef.current?.stop();
+      if (rewindIntervalRef.current) {
+        clearInterval(rewindIntervalRef.current);
+      }
     };
   }, [id]);
 
   useEffect(() => {
-    hasSaveState(id).then(setHasSave);
-  }, [id]);
+    checkSaveSlots();
+  }, [id, checkSaveSlots]);
 
   async function handleBridgeEvent(event: BridgeEvent) {
     if (event.type === 'started' && gameCanvasRef.current) {
-      await loadLatestSaveState(gameCanvasRef.current, id);
+      // Load slot 0 (primary slot) state by default if it exists
+      await loadLatestSaveState(gameCanvasRef.current, id, 0);
+
+      // Start the 2-second automatic rewind buffer interval
+      if (rewindIntervalRef.current) {
+        clearInterval(rewindIntervalRef.current);
+      }
+      rewindBuffer.current = [];
+      setCanRewind(false);
+
+      rewindIntervalRef.current = setInterval(async () => {
+        // Record only when playing normally (quick menu not visible)
+        if (gameCanvasRef.current && !quickMenuVisible) {
+          try {
+            const state = await gameCanvasRef.current.saveState();
+            if (state) {
+              rewindBuffer.current.push(state);
+              // Maintain maximum 6 states (lasts around 10-12 seconds of gameplay)
+              if (rewindBuffer.current.length > 6) {
+                rewindBuffer.current.shift();
+              }
+              setCanRewind(rewindBuffer.current.length > 1);
+            }
+          } catch {
+            // ignore errors if the core is not fully loaded/interactive
+          }
+        }
+      }, 2000);
     }
   }
 
@@ -61,15 +108,26 @@ export default function PlayerScreen() {
     setQuickMenuVisible(false);
   }
 
-  async function handleSave() {
+  async function handleSave(slot: number) {
     if (!gameCanvasRef.current) return;
-    await saveGameState(gameCanvasRef.current, id);
-    setHasSave(true);
+    await saveGameState(gameCanvasRef.current, id, slot);
+    await checkSaveSlots();
   }
 
-  async function handleLoad() {
+  async function handleLoad(slot: number) {
     if (!gameCanvasRef.current) return;
-    await loadLatestSaveState(gameCanvasRef.current, id);
+    await loadLatestSaveState(gameCanvasRef.current, id, slot);
+    // Reset rewind buffer on manual save load
+    rewindBuffer.current = [];
+    setCanRewind(false);
+    handleCloseMenu();
+  }
+
+  function handleRestart() {
+    if (!gameCanvasRef.current) return;
+    gameCanvasRef.current.restart();
+    rewindBuffer.current = [];
+    setCanRewind(false);
     handleCloseMenu();
   }
 
@@ -78,13 +136,40 @@ export default function PlayerScreen() {
     gameCanvasRef.current?.setPixelSmoothing(value);
   }
 
+  function handleFastForwardPress() {
+    if (!gameCanvasRef.current) return;
+    gameCanvasRef.current.toggleFastForward();
+    setIsFastForwardActive((prev) => !prev);
+  }
+
+  async function handleRewindPress() {
+    if (!gameCanvasRef.current || rewindBuffer.current.length <= 1) return;
+
+    // Discard the current moment's state
+    rewindBuffer.current.pop();
+    // Retrieve the state from 2 seconds ago
+    const targetState = rewindBuffer.current[rewindBuffer.current.length - 1];
+
+    if (targetState) {
+      try {
+        await gameCanvasRef.current.loadState(targetState);
+        setCanRewind(rewindBuffer.current.length > 1);
+      } catch (e) {
+        console.warn('[PlayerScreen] Failed to load rewind state:', e);
+      }
+    }
+  }
+
   function handleExit() {
+    if (rewindIntervalRef.current) {
+      clearInterval(rewindIntervalRef.current);
+    }
     setQuickMenuVisible(false);
     router.back();
   }
 
   if (game === undefined) {
-    return <View style={styles.center} />;
+    return <LoadingState />;
   }
 
   if (game === null) {
@@ -104,15 +189,20 @@ export default function PlayerScreen() {
         gameName={game.title}
         onEvent={handleBridgeEvent}
         onMenuPress={handleMenuPress}
+        onFastForwardPress={handleFastForwardPress}
+        onRewindPress={handleRewindPress}
+        isFastForwardActive={isFastForwardActive}
+        canRewind={canRewind}
       />
-      <ExitButton />
+      {!isLandscape && <ExitButton />}
       <QuickMenu
         visible={quickMenuVisible}
         onClose={handleCloseMenu}
         onSave={handleSave}
         onLoad={handleLoad}
+        onRestart={handleRestart}
         onExit={handleExit}
-        hasSaveState={hasSave}
+        saveSlotsExist={saveSlotsExist}
         smoothing={smoothing}
         onToggleSmoothing={handleToggleSmoothing}
       />

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 
 import type { DPadDirection } from '@/lib/emulator/inputMap';
+import { useTheme } from '@/lib/theme/ThemeContext';
 import { radii } from '@/lib/theme/tokens';
 
 type JoystickProps = {
@@ -31,8 +32,8 @@ function sameDirections(a: Set<DPadDirection>, b: Set<DPadDirection>): boolean {
   return true;
 }
 
-/** Floating joystick (Brawl Stars-style): the base appears wherever the thumb first touches down. */
 export function Joystick({ size, onDirectionsChange }: JoystickProps) {
+  const { colors, controllerSkin } = useTheme();
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
   const [thumbOffset, setThumbOffset] = useState({ x: 0, y: 0 });
   const activeDirections = useRef<Set<DPadDirection>>(new Set());
@@ -71,17 +72,51 @@ export function Joystick({ size, onDirectionsChange }: JoystickProps) {
     })
   ).current;
 
+  // Joystick Skin Presets
+  const skinStyles = {
+    minimalist: {
+      baseBg: colors.accent + '14',
+      baseBorder: colors.accent + '40',
+      thumbBg: colors.accent + '73',
+      thumbBorder: colors.accent + 'b3',
+    },
+    retro: {
+      baseBg: '#C4A05626',
+      baseBorder: '#C4A0564d',
+      thumbBg: '#8B1E22',
+      thumbBorder: '#C4A056',
+    },
+    translucent: {
+      baseBg: 'rgba(255, 255, 255, 0.05)',
+      baseBorder: 'rgba(255, 255, 255, 0.15)',
+      thumbBg: 'rgba(255, 255, 255, 0.3)',
+      thumbBorder: 'rgba(255, 255, 255, 0.5)',
+    },
+  }[controllerSkin];
+
   return (
     <View style={[styles.zone, { width: size, height: size }]} {...panResponder.panHandlers}>
       {origin && (
         <View
-          style={[styles.base, { left: origin.x - BASE_SIZE / 2, top: origin.y - BASE_SIZE / 2 }]}
+          style={[
+            styles.base,
+            {
+              left: origin.x - BASE_SIZE / 2,
+              top: origin.y - BASE_SIZE / 2,
+              backgroundColor: skinStyles.baseBg,
+              borderColor: skinStyles.baseBorder,
+            },
+          ]}
           pointerEvents="none"
         >
           <View
             style={[
               styles.thumb,
-              { transform: [{ translateX: thumbOffset.x }, { translateY: thumbOffset.y }] },
+              {
+                transform: [{ translateX: thumbOffset.x }, { translateY: thumbOffset.y }],
+                backgroundColor: skinStyles.thumbBg,
+                borderColor: skinStyles.thumbBorder,
+              },
             ]}
           />
         </View>
@@ -99,9 +134,7 @@ const styles = StyleSheet.create({
     width: BASE_SIZE,
     height: BASE_SIZE,
     borderRadius: radii.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -109,8 +142,6 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: radii.full,
-    backgroundColor: 'rgba(124, 108, 246, 0.5)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
 });

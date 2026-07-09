@@ -44,3 +44,11 @@ export async function getHomebrewCatalog(): Promise<HomebrewGame[]> {
   writeCache({ fetchedAt: Date.now(), games });
   return games;
 }
+
+/** Deletes the cached catalog so the next read refetches it (F7 clear cache). */
+export function clearHomebrewCatalogCache(): void {
+  const file = new File(Paths.cache, CACHE_FILE_NAME);
+  if (file.exists) {
+    file.delete();
+  }
+}

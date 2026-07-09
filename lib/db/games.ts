@@ -31,6 +31,11 @@ export async function incrementPlaytime(id: string, deltaSeconds: number): Promi
   await db.runAsync('UPDATE games SET playtime = playtime + ? WHERE id = ?', [deltaSeconds, id]);
 }
 
+export async function updateGameCover(id: string, coverUri: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE games SET cover_uri = ? WHERE id = ?', [coverUri, id]);
+}
+
 export async function upsertGame(game: Game): Promise<void> {
   const db = await getDb();
   await db.runAsync(
@@ -94,4 +99,9 @@ export async function insertImportedGame(input: ImportGameInput): Promise<Game> 
   );
 
   return game;
+}
+
+export async function deleteGame(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM games WHERE id = ?', [id]);
 }

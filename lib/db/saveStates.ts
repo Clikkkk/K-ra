@@ -34,3 +34,16 @@ export async function upsertSaveState(input: UpsertSaveStateInput): Promise<void
     [input.id, input.gameId, slot, input.fileUri, Date.now()]
   );
 }
+
+export async function getSaveStatesForGame(gameId: string): Promise<SaveState[]> {
+  const db = await getDb();
+  return db.getAllAsync<SaveState>(
+    'SELECT * FROM save_states WHERE game_id = ? ORDER BY slot ASC',
+    [gameId]
+  );
+}
+
+export async function deleteSaveState(gameId: string, slot: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM save_states WHERE game_id = ? AND slot = ?', [gameId, slot]);
+}

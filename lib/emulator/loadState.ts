@@ -4,17 +4,18 @@ import { getSaveState } from '@/lib/db/saveStates';
 
 import type { EmulatorViewHandle } from '@/components/emulator/EmulatorView';
 
-export async function hasSaveState(gameId: string): Promise<boolean> {
-  const state = await getSaveState(gameId);
+export async function hasSaveState(gameId: string, slot: number = 0): Promise<boolean> {
+  const state = await getSaveState(gameId, slot);
   return state !== null;
 }
 
 /** Loads the game's saved state into the running core, if one exists. Returns whether it did. */
 export async function loadLatestSaveState(
   emulator: EmulatorViewHandle,
-  gameId: string
+  gameId: string,
+  slot: number = 0
 ): Promise<boolean> {
-  const state = await getSaveState(gameId);
+  const state = await getSaveState(gameId, slot);
   if (!state) {
     return false;
   }

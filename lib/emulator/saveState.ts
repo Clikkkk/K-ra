@@ -5,8 +5,12 @@ import { upsertSaveState } from '@/lib/db/saveStates';
 
 import type { EmulatorViewHandle } from '@/components/emulator/EmulatorView';
 
-/** Saves the running core's state to disk and registers it in the DB (single slot for MVP). */
-export async function saveGameState(emulator: EmulatorViewHandle, gameId: string): Promise<void> {
+/** Saves the running core's state to disk and registers it in the DB. */
+export async function saveGameState(
+  emulator: EmulatorViewHandle,
+  gameId: string,
+  slot: number = 0
+): Promise<void> {
   const stateBase64 = await emulator.saveState();
 
   const savesDir = new Directory(Paths.document, 'saves');
@@ -14,11 +18,11 @@ export async function saveGameState(emulator: EmulatorViewHandle, gameId: string
     savesDir.create({ intermediates: true });
   }
 
-  const file = new File(savesDir, `${gameId}-slot0.state`);
+  const file = new File(savesDir, `${gameId}-slot${slot}.state`);
   // file.write's native binding only accepts a single argument in this
   // expo-file-system version (the `encoding` option in its TS types isn't
   // actually implemented natively yet), so decode base64 -> bytes ourselves.
   file.write(base64ToBytes(stateBase64));
 
-  await upsertSaveState({ id: `${gameId}-0`, gameId, fileUri: file.uri });
+  await upsertSaveState({ id: `${gameId}-${slot}`, gameId, fileUri: file.uri, slot });
 }

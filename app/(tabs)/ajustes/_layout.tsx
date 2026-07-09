@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 
-export default function BibliotecaLayout() {
+export default function AjustesLayout() {
   return (
     <Stack
       screenOptions={{
@@ -17,7 +17,7 @@ export default function BibliotecaLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="import" options={{ title: 'Importar ROM' }} />
+      <Stack.Screen name="theme" options={{ title: 'Tema' }} />
     </Stack>
   );
 }
