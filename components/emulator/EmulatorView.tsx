@@ -26,7 +26,7 @@ export type EmulatorViewHandle = {
   setVolume: (volume: number) => void;
   setPixelSmoothing: (smooth: boolean) => void;
   sendInput: (input: TouchInput, pressed: boolean) => void;
-  toggleFastForward: () => void;
+  setFastForward: (active: boolean) => void;
   restart: () => void;
 };
 
@@ -139,10 +139,10 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
 
 
   window.onerror = function(message, source, lineno, colno) {
-    post({ type: 'log', level: 'error', message: String(message) + ' @' + source + ':' + lineno + ':' + colno });
+    post({ type: 'error', message: String(message) + ' @' + source + ':' + lineno + ':' + colno });
   };
   window.addEventListener('unhandledrejection', function(e) {
-    post({ type: 'log', level: 'error', message: 'unhandledrejection: ' + e.reason });
+    post({ type: 'error', message: 'unhandledrejection: ' + e.reason });
   });
 
   post({ type: 'log', level: 'log', message: 'bootstrap script running' });
@@ -195,6 +195,16 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
       if (window.EJS_emulator && window.EJS_emulator.canvas) {
         window.EJS_emulator.canvas.style.imageRendering = smooth ? 'auto' : 'pixelated';
       }
+    },
+    setFastForward: function(active) {
+      const ev = new KeyboardEvent(active ? 'keydown' : 'keyup', {
+        key: ' ',
+        code: 'Space',
+        keyCode: 32,
+        which: 32,
+        bubbles: true
+      });
+      document.dispatchEvent(ev);
     }
   };
 
@@ -236,8 +246,9 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const pendingSaveState = useRef<((stateBase64: string) => void) | null>(null);
-  const pendingLoadState = useRef<(() => void) | null>(null);
+  const pendingSaveStates = useRef<((stateBase64: string) => void)[]>([]);
+  const pendingLoadStates = useRef<(() => void)[]>([]);
+  const isRestartingRef = useRef(false);
   const pulseAnim = useRef(new Animated.Value(0.35)).current;
 
   useEffect(() => {
@@ -279,38 +290,21 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
     resume: () => runCommand({ type: 'resume' }),
     saveState: () =>
       new Promise<string>((resolve) => {
-        pendingSaveState.current = resolve;
+        pendingSaveStates.current.push(resolve);
         runCommand({ type: 'saveState' });
       }),
     loadState: (stateBase64: string) =>
       new Promise<void>((resolve) => {
-        pendingLoadState.current = resolve;
+        pendingLoadStates.current.push(resolve);
         runCommand({ type: 'loadState', stateBase64 });
       }),
     setVolume: (volume: number) => runCommand({ type: 'setVolume', volume }),
     setPixelSmoothing: (smooth: boolean) => runCommand({ type: 'setPixelSmoothing', smooth }),
     sendInput: (input: TouchInput, pressed: boolean) =>
       webViewRef.current?.injectJavaScript(buildSimulateInputScript(input, pressed)),
-    toggleFastForward: () => {
-      webViewRef.current?.injectJavaScript(`
-        (function() {
-          const dispatch = function(type) {
-            const ev = new KeyboardEvent(type, {
-              key: ' ',
-              code: 'Space',
-              keyCode: 32,
-              which: 32,
-              bubbles: true
-            });
-            document.dispatchEvent(ev);
-          };
-          dispatch('keydown');
-          setTimeout(function() { dispatch('keyup'); }, 50);
-        })();
-        true;
-      `);
-    },
+    setFastForward: (active: boolean) => runCommand({ type: 'setFastForward', active }),
     restart: () => {
+      isRestartingRef.current = true;
       setStarted(false);
       setError(null);
       webViewRef.current?.reload();
@@ -362,9 +356,9 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
   useEffect(() => {
     if (!htmlFileUri || started) return;
     const timeout = setTimeout(() => {
-      appendLog(
-        `timeout: no llegó el evento 'started' en ${STARTED_TIMEOUT_MS / 1000}s — revisa los logs arriba`
-      );
+      const message = `Tiempo de espera agotado esperando el evento 'started' (${STARTED_TIMEOUT_MS / 1000}s)`;
+      appendLog(`timeout: ${message} — revisa los logs arriba`);
+      setError(message);
     }, STARTED_TIMEOUT_MS);
     return () => clearTimeout(timeout);
   }, [htmlFileUri, started]);
@@ -377,20 +371,27 @@ export const EmulatorView = forwardRef<EmulatorViewHandle, EmulatorViewProps>(fu
     }
     if (bridgeEvent.type === 'log') {
       appendLog(`[${bridgeEvent.level}] ${bridgeEvent.message}`);
-    } else if (bridgeEvent.type === 'error') {
+      onEvent?.(bridgeEvent);
+      return;
+    }
+    if (bridgeEvent.type === 'error') {
       appendLog(`ERROR: ${bridgeEvent.message}`);
       setError(bridgeEvent.message);
-    } else {
-      appendLog(`evento: ${bridgeEvent.type}`);
-      if (bridgeEvent.type === 'started') {
-        setStarted(true);
-      } else if (bridgeEvent.type === 'saveStateResult') {
-        pendingSaveState.current?.(bridgeEvent.stateBase64);
-        pendingSaveState.current = null;
-      } else if (bridgeEvent.type === 'stateLoaded') {
-        pendingLoadState.current?.();
-        pendingLoadState.current = null;
-      }
+      onEvent?.(bridgeEvent);
+      return;
+    }
+    appendLog(`evento: ${bridgeEvent.type}`);
+    if (bridgeEvent.type === 'started') {
+      setStarted(true);
+      const wasRestart = isRestartingRef.current;
+      isRestartingRef.current = false;
+      onEvent?.(wasRestart ? { ...bridgeEvent, isRestart: true } : bridgeEvent);
+      return;
+    }
+    if (bridgeEvent.type === 'saveStateResult') {
+      pendingSaveStates.current.shift()?.(bridgeEvent.stateBase64);
+    } else if (bridgeEvent.type === 'stateLoaded') {
+      pendingLoadStates.current.shift()?.();
     }
     onEvent?.(bridgeEvent);
   }

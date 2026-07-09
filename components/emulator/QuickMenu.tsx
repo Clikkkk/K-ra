@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -31,6 +31,13 @@ export function QuickMenu({
 }: QuickMenuProps) {
   const [selectedSlot, setSelectedSlot] = useState(0);
   const { colors } = useTheme();
+
+  function handleExitPress() {
+    Alert.alert('¿Salir del juego?', 'El progreso sin guardar se va a perder.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Salir', style: 'destructive', onPress: onExit },
+    ]);
+  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -120,7 +127,7 @@ export function QuickMenu({
             label="Salir"
             icon="exit-outline"
             variant="ghost"
-            onPress={onExit}
+            onPress={handleExitPress}
             style={styles.fullButton}
           />
         </Card>

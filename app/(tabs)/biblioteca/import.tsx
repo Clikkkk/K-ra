@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -9,7 +9,7 @@ import { Text, View } from '@/components/Themed';
 import { Button } from '@/components/ui/Button';
 import { Toast } from '@/components/ui/Toast';
 import { insertImportedGame, updateGameCover } from '@/lib/db/games';
-import { System } from '@/lib/db/schema';
+import type { System } from '@/lib/db/schema';
 import { detectSystemFromFileName } from '@/lib/rom/detectSystem';
 import { storeRom } from '@/lib/rom/storeRom';
 import { colors, spacing } from '@/lib/theme/tokens';

@@ -12,11 +12,12 @@ export type BridgeCommand =
   | { type: 'saveState' }
   | { type: 'loadState'; stateBase64: string }
   | { type: 'setVolume'; volume: number }
-  | { type: 'setPixelSmoothing'; smooth: boolean };
+  | { type: 'setPixelSmoothing'; smooth: boolean }
+  | { type: 'setFastForward'; active: boolean };
 
 export type BridgeEvent =
   | { type: 'ready' }
-  | { type: 'started' }
+  | { type: 'started'; isRestart?: boolean }
   | { type: 'paused' }
   | { type: 'resumed' }
   | { type: 'saveStateResult'; stateBase64: string }
@@ -38,6 +39,8 @@ export function buildCommandScript(command: BridgeCommand): string {
       return `window.__korabridge && window.__korabridge.loadState(${JSON.stringify(command.stateBase64)}); true;`;
     case 'setPixelSmoothing':
       return `window.__korabridge && window.__korabridge.setPixelSmoothing(${JSON.stringify(command.smooth)}); true;`;
+    case 'setFastForward':
+      return `window.__korabridge && window.__korabridge.setFastForward(${JSON.stringify(command.active)}); true;`;
   }
 }
 

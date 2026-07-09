@@ -12,6 +12,10 @@ import { SYSTEM_LABEL, type System } from '@/lib/db/schema';
 import { getHomebrewGameById } from '@/lib/homebrew/catalog';
 import { addHomebrewGameToLibrary } from '@/lib/homebrew/download';
 import { useTheme } from '@/lib/theme/ThemeContext';
+// tokenColors is the static token set for use in module-scope StyleSheet.create
+// blocks, which can't call useTheme(). Only background/surface/border/text/
+// textMuted are safe here — accent/accentMuted DO vary per accent theme and
+// must come from useTheme().colors in dynamic (inline) styles instead.
 import { colors as tokenColors, radii, spacing, typography } from '@/lib/theme/tokens';
 
 const SYSTEM_THEME: Record<System, { bg: string; text: string; label: string }> = {

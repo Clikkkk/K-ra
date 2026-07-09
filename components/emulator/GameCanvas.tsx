@@ -58,7 +58,7 @@ export const GameCanvas = forwardRef<EmulatorViewHandle, GameCanvasProps>(functi
     setVolume: (volume: number) => emulatorRef.current?.setVolume(volume),
     setPixelSmoothing: (smooth: boolean) => emulatorRef.current?.setPixelSmoothing(smooth),
     sendInput: (input, pressed) => emulatorRef.current?.sendInput(input, pressed),
-    toggleFastForward: () => emulatorRef.current?.toggleFastForward(),
+    setFastForward: (active: boolean) => emulatorRef.current?.setFastForward(active),
     restart: () => emulatorRef.current?.restart(),
   }));
 

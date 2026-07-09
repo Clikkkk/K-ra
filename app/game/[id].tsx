@@ -21,8 +21,11 @@ import {
 import { getGameById, updateGameCover, deleteGame } from '@/lib/db/games';
 import { getSaveStatesForGame, deleteSaveState } from '@/lib/db/saveStates';
 import { type Collection, type Game, type System, type SaveState } from '@/lib/db/schema';
-import { hasSaveState } from '@/lib/emulator/loadState';
 import { useTheme } from '@/lib/theme/ThemeContext';
+// tokenColors is the static token set for use in module-scope StyleSheet.create
+// blocks, which can't call useTheme(). Only background/surface/border/text/
+// textMuted are safe here — accent/accentMuted DO vary per accent theme and
+// must come from useTheme().colors in dynamic (inline) styles instead.
 import { colors as tokenColors, radii, spacing, typography } from '@/lib/theme/tokens';
 
 const SYSTEM_THEME: Record<System, { bg: string; text: string; label: string }> = {
@@ -64,13 +67,13 @@ function formatImportedDate(timestamp: number): string {
 export default function GameDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [game, setGame] = useState<Game | null | undefined>(undefined);
-  const [canContinue, setCanContinue] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [gameCollectionIds, setGameCollectionIds] = useState<Set<string>>(new Set());
   const [creatingCollection, setCreatingCollection] = useState(false);
   const [saveStates, setSaveStates] = useState<SaveState[]>([]);
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const canContinue = saveStates.length > 0;
 
   const refreshGameCollections = useCallback(async () => {
     const result = await getCollectionsForGame(id);
@@ -86,9 +89,6 @@ export default function GameDetailScreen() {
     let cancelled = false;
     getGameById(id).then((result) => {
       if (!cancelled) setGame(result);
-    });
-    hasSaveState(id).then((result) => {
-      if (!cancelled) setCanContinue(result);
     });
     getAllCollections().then((result) => {
       if (!cancelled) setCollections(result);
@@ -160,6 +160,7 @@ export default function GameDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             if (!game) return;
+            const statesToDelete = saveStates;
             await deleteGame(game.id);
             try {
               if (game.file_uri) {
@@ -180,6 +181,18 @@ export default function GameDetailScreen() {
               }
             } catch (e) {
               console.warn('Error deleting cover file:', e);
+            }
+            for (const state of statesToDelete) {
+              try {
+                if (state.file_uri) {
+                  const stateFile = new File(state.file_uri);
+                  if (stateFile.exists) {
+                    stateFile.delete();
+                  }
+                }
+              } catch (e) {
+                console.warn('Error deleting save state file:', e);
+              }
             }
             router.back();
           },
@@ -211,8 +224,6 @@ export default function GameDetailScreen() {
               console.warn('Error deleting save state file:', e);
             }
             await refreshSaveStates();
-            const continueExists = await hasSaveState(id);
-            setCanContinue(continueExists);
           },
         },
       ]

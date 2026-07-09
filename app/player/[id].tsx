@@ -30,6 +30,7 @@ export default function PlayerScreen() {
   const gameCanvasRef = useRef<EmulatorViewHandle>(null);
   const rewindBuffer = useRef<string[]>([]);
   const rewindIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const quickMenuVisibleRef = useRef(false);
 
   const checkSaveSlots = useCallback(async () => {
     const results = await Promise.all([
@@ -65,10 +66,18 @@ export default function PlayerScreen() {
     checkSaveSlots();
   }, [id, checkSaveSlots]);
 
+  useEffect(() => {
+    quickMenuVisibleRef.current = quickMenuVisible;
+  }, [quickMenuVisible]);
+
   async function handleBridgeEvent(event: BridgeEvent) {
     if (event.type === 'started' && gameCanvasRef.current) {
-      // Load slot 0 (primary slot) state by default if it exists
-      await loadLatestSaveState(gameCanvasRef.current, id, 0);
+      // Load slot 0 (primary slot) state by default, unless this 'started'
+      // event came from a manual restart (which should boot clean, not
+      // reload the last save).
+      if (!event.isRestart) {
+        await loadLatestSaveState(gameCanvasRef.current, id, 0);
+      }
 
       // Start the 2-second automatic rewind buffer interval
       if (rewindIntervalRef.current) {
@@ -79,7 +88,7 @@ export default function PlayerScreen() {
 
       rewindIntervalRef.current = setInterval(async () => {
         // Record only when playing normally (quick menu not visible)
-        if (gameCanvasRef.current && !quickMenuVisible) {
+        if (gameCanvasRef.current && !quickMenuVisibleRef.current) {
           try {
             const state = await gameCanvasRef.current.saveState();
             if (state) {
@@ -138,8 +147,9 @@ export default function PlayerScreen() {
 
   function handleFastForwardPress() {
     if (!gameCanvasRef.current) return;
-    gameCanvasRef.current.toggleFastForward();
-    setIsFastForwardActive((prev) => !prev);
+    const next = !isFastForwardActive;
+    gameCanvasRef.current.setFastForward(next);
+    setIsFastForwardActive(next);
   }
 
   async function handleRewindPress() {
