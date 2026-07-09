@@ -36,6 +36,6 @@ En desarrollo activo. Consulta el roadmap de commits hasta MVP en `/docs` (o el 
 
 ## Licencia y contenido de terceros
 
-El código de Kōra es propio. Los cores de emulación utilizados son proyectos open source de la comunidad libretro/RetroArch, cada uno bajo su propia licencia. Los juegos del catálogo homebrew mantienen la licencia y autoría de sus creadores originales; se incluye enlace y crédito a la fuente en cada ficha.
+El código de Kōra es propio. El motor de emulación embebido es [EmulatorJS](https://emulatorjs.org) (GPL-3.0, ver `docs/EMULATORJS_LICENSE.txt`), que a su vez empaqueta cores de la comunidad libretro/RetroArch (fceumm, snes9x, mgba — ver `docs/cores.md`), cada uno bajo su propia licencia. Los juegos del catálogo homebrew mantienen la licencia y autoría de sus creadores originales; se incluye enlace y crédito a la fuente en cada ficha.
 
 Este proyecto no aloja, enlaza ni facilita el acceso a ROMs de juegos comerciales protegidos por copyright.
