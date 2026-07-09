@@ -25,6 +25,7 @@ export async function seedNestestGame(): Promise<string> {
     cover_uri: null,
     last_played: null,
     playtime: 0,
+    imported_at: Date.now(),
   });
 
   return NESTEST_GAME_ID;

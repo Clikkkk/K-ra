@@ -8,6 +8,7 @@ export interface Game {
   cover_uri: string | null;
   last_played: number | null;
   playtime: number;
+  imported_at: number;
 }
 
 export interface SaveState {
@@ -18,7 +19,7 @@ export interface SaveState {
   created_at: number;
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS games (
@@ -28,7 +29,8 @@ CREATE TABLE IF NOT EXISTS games (
   file_uri TEXT NOT NULL,
   cover_uri TEXT,
   last_played INTEGER,
-  playtime INTEGER NOT NULL DEFAULT 0
+  playtime INTEGER NOT NULL DEFAULT 0,
+  imported_at INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS save_states (
@@ -41,3 +43,10 @@ CREATE TABLE IF NOT EXISTS save_states (
 
 CREATE INDEX IF NOT EXISTS idx_save_states_game_id ON save_states(game_id);
 `;
+
+// Applied in order for existing installs whose user_version is below SCHEMA_VERSION.
+// Fresh installs skip these entirely since CREATE_TABLES_SQL above already reflects
+// the latest shape.
+export const MIGRATIONS: Record<number, string> = {
+  2: 'ALTER TABLE games ADD COLUMN imported_at INTEGER NOT NULL DEFAULT 0;',
+};
