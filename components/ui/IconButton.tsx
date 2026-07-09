@@ -1,10 +1,10 @@
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, type PressableProps } from 'react-native';
 
 import { colors, radii, spacing } from '@/lib/theme/tokens';
 
 type IconButtonProps = Omit<PressableProps, 'children'> & {
-  icon: SymbolViewProps['name'];
+  icon: keyof typeof Ionicons.glyphMap;
   size?: number;
 };
 
@@ -29,7 +29,7 @@ export function IconButton({
       ]}
       {...pressableProps}
     >
-      <SymbolView name={icon} tintColor={colors.text} size={size} />
+      <Ionicons name={icon} color={colors.text} size={size} />
     </Pressable>
   );
 }

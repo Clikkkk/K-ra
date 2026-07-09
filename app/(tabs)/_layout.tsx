@@ -1,4 +1,4 @@
-import { SymbolView } from 'expo-symbols';
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
 import Colors from '@/constants/Colors';
@@ -21,38 +21,22 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'house', android: 'home', web: 'home' }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="biblioteca"
         options={{
           title: 'Biblioteca',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'square.grid.2x2', android: 'apps', web: 'apps' }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="homebrew"
         options={{
           title: 'Homebrew',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'gamecontroller', android: 'sports_esports', web: 'sports_esports' }}
-              tintColor={color}
-              size={28}
-            />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="game-controller" color={color} size={size} />
           ),
         }}
       />
@@ -60,13 +44,7 @@ export default function TabLayout() {
         name="ajustes"
         options={{
           title: 'Ajustes',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'gearshape', android: 'settings', web: 'settings' }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} />,
         }}
       />
     </Tabs>
