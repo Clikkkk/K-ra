@@ -12,6 +12,19 @@ export async function getAllGames(): Promise<Game[]> {
   return db.getAllAsync<Game>('SELECT * FROM games ORDER BY imported_at DESC');
 }
 
+export async function getRecentlyPlayedGames(limit: number): Promise<Game[]> {
+  const db = await getDb();
+  return db.getAllAsync<Game>(
+    'SELECT * FROM games WHERE last_played IS NOT NULL ORDER BY last_played DESC LIMIT ?',
+    [limit]
+  );
+}
+
+export async function markGamePlayed(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE games SET last_played = ? WHERE id = ?', [Date.now(), id]);
+}
+
 export async function upsertGame(game: Game): Promise<void> {
   const db = await getDb();
   await db.runAsync(

@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native';
 
 import { GameCanvas } from '@/components/emulator/GameCanvas';
 import { Text, View } from '@/components/Themed';
-import { getGameById } from '@/lib/db/games';
+import { getGameById, markGamePlayed } from '@/lib/db/games';
 import type { Game } from '@/lib/db/schema';
 
 export default function PlayerScreen() {
@@ -15,6 +15,7 @@ export default function PlayerScreen() {
     let cancelled = false;
     getGameById(id).then((result) => {
       if (!cancelled) setGame(result);
+      if (result) markGamePlayed(result.id);
     });
     return () => {
       cancelled = true;
