@@ -134,6 +134,10 @@ export default function PlayerScreen() {
 
   function handleRestart() {
     if (!gameCanvasRef.current) return;
+    if (rewindIntervalRef.current) {
+      clearInterval(rewindIntervalRef.current);
+      rewindIntervalRef.current = null;
+    }
     gameCanvasRef.current.restart();
     rewindBuffer.current = [];
     setCanRewind(false);

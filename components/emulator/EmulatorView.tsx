@@ -141,8 +141,12 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
   window.onerror = function(message, source, lineno, colno) {
     post({ type: 'error', message: String(message) + ' @' + source + ':' + lineno + ':' + colno });
   };
+  // Rejected promises are not treated as fatal: iOS WKWebView routinely
+  // rejects AudioContext.resume() with NotAllowedError until the user makes
+  // a direct gesture (handled by the unmute overlay below), which is normal
+  // and not a reason to kill the whole session.
   window.addEventListener('unhandledrejection', function(e) {
-    post({ type: 'error', message: 'unhandledrejection: ' + e.reason });
+    post({ type: 'log', level: 'warn', message: 'unhandledrejection: ' + e.reason });
   });
 
   post({ type: 'log', level: 'log', message: 'bootstrap script running' });
@@ -176,6 +180,13 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
       if (window.EJS_emulator) window.EJS_emulator.setVolume(volume);
     },
     saveState: function() {
+      if (!window.EJS_emulator || !window.EJS_emulator.gameManager) {
+        // Still reply (with an empty result) so the native side's FIFO
+        // request queue doesn't get stuck waiting on this call forever.
+        post({ type: 'log', level: 'warn', message: 'saveState skipped: core not ready yet' });
+        post({ type: 'saveStateResult', stateBase64: '' });
+        return;
+      }
       try {
         const state = window.EJS_emulator.gameManager.getState();
         post({ type: 'saveStateResult', stateBase64: bytesToBase64(state) });
@@ -184,6 +195,11 @@ function buildHtml(core: string, gameUrl: string, gameName: string): string {
       }
     },
     loadState: function(base64) {
+      if (!window.EJS_emulator || !window.EJS_emulator.gameManager) {
+        post({ type: 'log', level: 'warn', message: 'loadState skipped: core not ready yet' });
+        post({ type: 'stateLoaded' });
+        return;
+      }
       try {
         window.EJS_emulator.gameManager.loadState(base64ToBytes(base64));
         post({ type: 'stateLoaded' });
